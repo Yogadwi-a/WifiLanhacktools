@@ -1,0 +1,4 @@
+pywifi
+scapy
+pyfiglet
+termcolor
