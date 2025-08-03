@@ -2,3 +2,4 @@ pywifi
 scapy
 pyfiglet
 termcolor
+mac-vendor-lookup
