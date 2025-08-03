@@ -161,7 +161,7 @@ def scan_ip(gateway):
     res.append({'ip': received.psrc, 'mac': received.hwsrc, 'vendor': vendor})
 
   if len(res) == 0:
-    print('[!]IP Address tidak ditemukan. coba periksa IP Gateway')
+    print('IP Address tidak ditemukan. coba periksa IP Gateway')
     sys.exit()
   else:
     pass
@@ -218,7 +218,6 @@ def main():
  print()
  print("Untuk Bruteforce Wifi password:")
  print("Untuk scan Wi-Fi: python3 run.py --c scan_wifi_lists ")
- print("sudo bin/python run.py --c scan_wifi_lists")
  print("Untuk melakukan serangan brute force Wi-Fi : python3 run.py --c crack_wifi_password --s TARGET_WIFI --w WORDLIST.txt")
  print()
  print("Untuk ICMP Flood:")
