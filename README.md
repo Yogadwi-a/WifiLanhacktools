@@ -1,13 +1,19 @@
-# WifiLanhacktools BETA Version
+# WifiLanhacktools V.1.0.1
 
 Sebuah tool simpel untuk hack jaringan Wi-Fi
 
 Tersedia untuk:
-- WiFi password crack
+- WiFi password crack 
 - ICMP Flood
-- DHCP rogue
-- DOS attack
+- Stop Internet (Linux Only)
 
+Script tested in:
+- Linux
+- Windows
+
+NOTE:
+[!]Untuk PC dengan OS Windows wajib terlebih dahulu untuk menginstall Python.
+[!]Tidak semua fitur bekerja di kedua OS, Seperti Stop Internet yang hanya bisa untuk OS Linux.
 [!]Install requirement-nya terlebih dahulu dengan mengetik "pip3 install -r requirements.txt".
 
 Cara pakai:
@@ -24,7 +30,7 @@ Cara pakai:
    + Jika SSID memiliki spasi tambahkan huruf petik seperti contoh diatas.
    + Tekan Ctrl + C untuk berhenti.
 
-3. Cara melakukan serangan ICMP Flood
+2. Cara melakukan serangan ICMP Flood
    Serangan ini bertujuan untuk membanjiri target dengan sejumlah paket ICMP untuk menghambat lalu lintas internet pada target tersebut.
    
    [*]Cara Pakai:
@@ -35,17 +41,8 @@ Cara pakai:
 
    [!]Note:
    + Tekan Ctrl + C untuk berhenti.
-     
-5. Cara melakukan serangan DHCP Rogue
-   DHCP Rogue ini bertujuan untuk menjadi DHCP Server kedua. jadi jika melakukan serangan ini otomatis PC ini menjadi DHCP server.
-   
-   [*]Cara Pakai:
-   - Ketik "python run.py --c dhcp_rogue --ip [IP_ATTACKER] --g [GATEWAY] --d [IP_DNS] --sub [SUBNET_MASK] --lt [LEASE_TIME]" untuk melakukan serangan (contoh: python run.py --c dhcp_rogue --ip 192.168.1.2 --g 192.168.1.1 --d 192.168.1.1 --sub 255.255.255.0 --lt 43200).
-
-   [!]Note:
-   + Tekan Ctrl + C untuk berhenti.
   
-7. Cara melakukan serangan DOS Attack
+3. Cara melakukan serangan stop Internet (Linux Only)
    Serangan ini bertujuan untuk mematikan akses internet pada jaringan Wifi.
    
    [*]Cara Pakai:
