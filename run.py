@@ -3,7 +3,6 @@ from pywifi import PyWiFi
 from pywifi import const
 from pywifi import Profile
 from scapy.all import *
-from mac_vendor_lookup import MacLookup, VendorNotFoundError
 import time, argparse, os, pyfiglet, socket, struct, random, platform, subprocess, re
 from termcolor import colored
 from colorama import Fore, Style, init
