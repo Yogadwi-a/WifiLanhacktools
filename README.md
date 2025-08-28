@@ -13,8 +13,8 @@ Script tested in:
 
 NOTE:
 - Untuk PC dengan OS Windows wajib terlebih dahulu untuk menginstall Python.
-- Jika anda melakukan DOS Attack dengan OS Windows, maka anda hanya bisa melakukan serangan single attack dan harus terinstall Npcap dan pydivert
-- Install requirement-nya terlebih dahulu dengan mengetik "pip3 install -r requirements.txt".
+- Jika anda melakukan DOS Attack dengan OS Windows, maka anda hanya bisa melakukan serangan single attack dan harus terinstall Npcap dan pydivert.
+- Install requirement-nya terlebih dahulu. pilih requirements yang sesuai dengan OS anda dengan mengetik "pip3 install -r requirements.txt" (contoh: pip3 install -r requirements_for_linux.txt)
 
 Cara pakai:
 1. Serangan crack password Wifi
