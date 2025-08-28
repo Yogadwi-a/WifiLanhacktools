@@ -5,7 +5,7 @@ Sebuah tool simpel untuk hack jaringan Wi-Fi
 Tersedia untuk:
 - WiFi password crack 
 - ICMP Flood
-- Stop Internet (Linux Only)
+- DOS Attack
 
 Script tested in:
 - Linux
@@ -13,7 +13,7 @@ Script tested in:
 
 NOTE:
 [!]Untuk PC dengan OS Windows wajib terlebih dahulu untuk menginstall Python.
-[!]Tidak semua fitur bekerja di kedua OS, Seperti Stop Internet yang hanya bisa untuk OS Linux.
+[!]Jika anda melakukan DOS Attack dengan OS Windows, maka anda hanya bisa melakukan serangan single attack dan harus terinstall Npcap dan pydivert
 [!]Install requirement-nya terlebih dahulu dengan mengetik "pip3 install -r requirements.txt".
 
 Cara pakai:
@@ -30,7 +30,7 @@ Cara pakai:
    + Jika SSID memiliki spasi tambahkan huruf petik seperti contoh diatas.
    + Tekan Ctrl + C untuk berhenti.
 
-2. Cara melakukan IP Scan dan serangan ICMP Flood
+2. IP Scan dan serangan ICMP Flood
    Serangan ini bertujuan untuk membanjiri target dengan sejumlah paket ICMP untuk menghambat lalu lintas internet dan kinerja device pada target tersebut. Alur program ini pertama-tama penyerang men-scan terlebih dahulu untuk memilih target dengan IP address. cara kerja IP Scan ini ialah menggunakan ping bawaan sistem lalu mencocokan TTL pada Ping tersebut untuk mengklasifikasi OS target. Tidak hanya itu, program IP Scan terdapat Port scan jadi secara otomatis program akan melihat port yang terbuka. Jika sudah menemukan target maka langkah selanjutnya ialah langkah penyerangan. Program ini memanfaatkan protokol ICMP untuk mengganggu sistem dan jaringan target. User menginputkan IP target, loop, dan payload. lalu program berjalan sesuai loop yang ditentukan. Di dalam loop tersebut terdapat program ICMP header lalu dikirim ke target secara berulang-ulang.
    
    [*]Cara Pakai:
@@ -43,13 +43,18 @@ Cara pakai:
    + Batas maksimum payload ialah 60000.
    + Tekan Ctrl + C untuk berhenti.
   
-4. Cara melakukan serangan stop Internet (Linux Only)
-   Serangan ini bertujuan untuk mematikan akses internet pada jaringan Wifi.
+3. Serangan DOS Attack
+   Serangan ini bertujuan untuk mematikan akses internet pada jaringan Wifi. serangan ini mengkombinasikan dengan ARP Spoofing dengan mengelabuhi MAC address supaya device tersebut percaya kepada MAC kita. Program ini dapat berjalan di Linux dan Windows tetapi, Di OS Windows hanya bisa melakukan serangan pada 1 target saja. Cara kerja program ini pertama-tama ialah program akan menjalankan Scan IP untuk mendapatkan target IP. Selanjutnya, program menjalankan ARP Spoofing dengan target yang didapat tadi. Kemudian, program akan menjalankan IP tables (untuk Linux) atau WinDivert (untuk Windows) untuk menghentikan akses internet supaya mereka terputus dari internet walaupun masih tersambung Wi-Fi. Jika anda memakai OS Linux, maka anda dapat melakukan serangan ini dengan mode all yang bertujuan untuk menghentikan semua akses Internet dan mode single untuk menghentikan akses internet ke target IP tersebut.
    
    [*]Cara Pakai:
-   - Ketik "python run.py --c stop_internet --g [GATEWAY] --i [INTERFACE] --g [GATEWAY] --i [INTERFACE] --p [IP_3_DIGIT_PERTAMA.255]" untuk melakukan serangan (contoh: python run.py --c stop_internet --g 192.168.1.1 --i wlp2s0 --p 192.168.1.255).
+   [-]Mode All
+      - Ketik "python run.py --c dos_attack --g [GATEWAY] --i [INTERFACE] --g [GATEWAY] --i [INTERFACE] --m all --p [IP_3_DIGIT_PERTAMA.255]" (contoh: python run.py --c dos_attack --g 192.168.1.1 --i wlp2s0 --m all --p 192.168.1.255).
+   [-]Mode Single
+      - Ketik "python run.py --c dos_attack --g [GATEWAY] --i [INTERFACE] --g [GATEWAY] --i [INTERFACE] --m single --ip [IP_TARGET]" (contoh: python run.py --c dos_attack --g 192.168.1.1 --i wlp2s0 --m single --ip 192.168.1.2).
 
    [!]Note:
+   + Jika anda pakai OS Windows, anda hanya bisa mode single
+   + Jika anda pakai OS Windows, jangan lupa install pydivert dan Npcap terlebih dahulu
    + Tekan Ctrl + C untuk berhenti.
 
 [!]Peringatan:
