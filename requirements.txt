@@ -1,5 +1,0 @@
-pywifi
-scapy
-pyfiglet
-termcolor
-colorama
